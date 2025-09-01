@@ -1,227 +1,201 @@
 # -----------------------------------------------------------------------------
-# Project 2: Sales Forecasting Model (Python, scikit-learn)
-# This script demonstrates a complete workflow for building a sales forecasting
-# model, following the user's requested steps.
+# STEP 1: Data Collection & Library Imports
 # -----------------------------------------------------------------------------
-
-# Step 1: Data Collection & Setup
-# Since we don't have a file, we'll generate a synthetic time-series dataset.
-# In a real-world scenario, you would use:
-# df = pd.read_csv('your_sales_data.csv')
+# This script uses pandas for data manipulation, matplotlib/seaborn for visualization,
+# and scikit-learn for machine learning models.
+# Make sure these libraries are installed: pip install pandas scikit-learn matplotlib seaborn
 
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-from sklearn.model_selection import train_test_split, TimeSeriesSplit
+import seaborn as sns
+
+from sklearn.model_selection import TimeSeriesSplit
 from sklearn.linear_model import LinearRegression
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_absolute_error, mean_squared_error
-from datetime import timedelta
-import json
 
-print("Generating synthetic sales data...")
-# Create a date range for the data
-dates = pd.date_range(start='2020-01-01', end='2023-12-31', freq='D')
-sales = np.random.randint(100, 250, size=len(dates))
+# For demonstration, we'll create a synthetic dataset with a trend and seasonality.
+# In a real-world scenario, you would load your data from a CSV file.
+# Example: data = pd.read_csv('your_sales_data.csv')
 
-# Add a strong yearly seasonality pattern (sinusoidal)
-# Peak sales in summer months, trough in winter
-seasonality = 50 * np.sin(2 * np.pi * (dates.dayofyear - 80) / 365.25)
-sales = sales + seasonality
+np.random.seed(42)
+dates = pd.date_range(start='2020-01-01', end='2023-12-31', freq='M')
+# Create sales data with an upward trend and a seasonal component (e.g., end-of-year sales spikes)
+sales = 1000 + 50 * np.arange(len(dates)) + 100 * np.sin(np.arange(len(dates)) * np.pi / 6) + np.random.normal(0, 50, len(dates))
+sales_data = pd.DataFrame({'Date': dates, 'Sales': sales.round(2)})
 
-# Add a linear trend over time
-trend = np.arange(len(dates)) * 0.5
-sales = sales + trend
+print("Initial Data Snapshot:")
+print(sales_data.head())
+print("\n")
 
-# Add some noise
-noise = np.random.normal(0, 15, size=len(dates))
-sales = sales + noise
+# -----------------------------------------------------------------------------
+# STEP 2: Exploratory Data Analysis (EDA)
+# -----------------------------------------------------------------------------
+print("Performing EDA...")
 
-df = pd.DataFrame({'Date': dates, 'Sales': sales.round(2)})
-
-# Step 2: Exploratory Data Analysis (EDA)
-print("\nPerforming Exploratory Data Analysis (EDA)...")
-print("First 5 rows of the dataset:")
-print(df.head())
-print("\nDataset information:")
-print(df.info())
-
-# Plot sales trends over time to visualize seasonality and trend
-plt.style.use('seaborn-v0_8-whitegrid')
+# Plotting sales trends over time to identify trends and seasonality.
 plt.figure(figsize=(14, 7))
-plt.plot(df['Date'], df['Sales'], color='skyblue', label='Sales')
-plt.title('Sales Trend Over Time')
-plt.xlabel('Date')
-plt.ylabel('Sales')
-plt.legend()
+sns.lineplot(x='Date', y='Sales', data=sales_data, label='Sales Trend')
+plt.title('Sales Trends Over Time', fontsize=16)
+plt.xlabel('Date', fontsize=12)
+plt.ylabel('Sales', fontsize=12)
 plt.grid(True)
 plt.show()
 
-# In a real project, you would also:
-# - Check for missing values: df.isnull().sum()
-# - Check for outliers using box plots: plt.boxplot(df['Sales'])
+# Checking for missing values
+print("Missing values in the dataset:")
+print(sales_data.isnull().sum())
+print("\n")
 
-# Step 3: Preprocessing
-print("\nPreprocessing data and engineering features...")
-df['Date'] = pd.to_datetime(df['Date'])
+# Identifying outliers using a box plot
+plt.figure(figsize=(10, 5))
+sns.boxplot(x=sales_data['Sales'])
+plt.title('Box Plot of Sales', fontsize=16)
+plt.xlabel('Sales', fontsize=12)
+plt.show()
 
-# Extract useful features from the date
-df['Year'] = df['Date'].dt.year
-df['Month'] = df['Date'].dt.month
-df['Day'] = df['Date'].dt.day
-df['DayOfWeek'] = df['Date'].dt.dayofweek
+# -----------------------------------------------------------------------------
+# STEP 3: Preprocessing and Feature Engineering
+# -----------------------------------------------------------------------------
+print("Preprocessing data and engineering features...")
 
-# Create a lagged sales feature (sales from the previous day)
-# This is a powerful feature for time-series forecasting.
-df['Sales_Lag1'] = df['Sales'].shift(1)
-df.dropna(inplace=True) # Drop the first row which has a NaN for Sales_Lag1
+# Convert 'Date' to datetime and extract time-based features
+sales_data['Date'] = pd.to_datetime(sales_data['Date'])
+sales_data['Year'] = sales_data['Date'].dt.year
+sales_data['Month'] = sales_data['Date'].dt.month
+sales_data['DayOfWeek'] = sales_data['Date'].dt.dayofweek
 
-# Define features and target
-features = ['Year', 'Month', 'Day', 'DayOfWeek', 'Sales_Lag1']
+# Create lagged sales features, which are crucial for time series forecasting.
+# These features represent the sales from previous periods.
+sales_data['Lag_1'] = sales_data['Sales'].shift(1)
+sales_data['Lag_3'] = sales_data['Sales'].shift(3)
+sales_data['Lag_6'] = sales_data['Sales'].shift(6)
+
+# Drop initial rows with NaN values created by the shift operation
+sales_data.dropna(inplace=True)
+sales_data.reset_index(drop=True, inplace=True)
+
+# Define features (X) and target (y)
+features = ['Year', 'Month', 'DayOfWeek', 'Lag_1', 'Lag_3', 'Lag_6']
 target = 'Sales'
+X = sales_data[features]
+y = sales_data[target]
 
-# Chronological Train/Test split for time series
-# We split the data based on a date to prevent data leakage.
-# Use 80% of data for training and 20% for testing.
-split_date = df['Date'].iloc[int(len(df) * 0.8)]
-train_df = df[df['Date'] < split_date]
-test_df = df[df['Date'] >= split_date]
+# Perform a chronological train/test split. It's important to not shuffle time series data.
+split_point = int(len(sales_data) * 0.8)
+X_train, X_test = X[:split_point], X[split_point:]
+y_train, y_test = y[:split_point], y[split_point:]
 
-X_train, y_train = train_df[features], train_df[target]
-X_test, y_test = test_df[features], test_df[target]
+print(f"Training set shape: {X_train.shape}")
+print(f"Testing set shape: {X_test.shape}")
+print("\n")
 
-print(f"Training set size: {len(X_train)} rows")
-print(f"Testing set size: {len(X_test)} rows")
+# -----------------------------------------------------------------------------
+# STEP 4: Baseline Model (Naïve Forecast)
+# -----------------------------------------------------------------------------
+print("Running baseline model (Naïve Forecast)...")
 
-# Step 4: Baseline Model
-print("\nCalculating Naive Forecast Baseline...")
-# A simple naive forecast: next sales = previous sales
-# Since our data is daily, we use the last sales value from the training set
-# as the prediction for the entire test set.
-naive_predictions = np.full(shape=len(y_test), fill_value=y_train.iloc[-1])
+# The Naïve forecast assumes the next value will be the last observed value.
+# For our features, we can use the 'Lag_1' feature for this.
+y_pred_naive = X_test['Lag_1']
 
-baseline_mae = mean_absolute_error(y_test, naive_predictions)
-baseline_rmse = np.sqrt(mean_squared_error(y_test, naive_predictions))
-print(f"Naive Forecast Baseline MAE: {baseline_mae:.2f}")
-print(f"Naive Forecast Baseline RMSE: {baseline_rmse:.2f}")
+mae_naive = mean_absolute_error(y_test, y_pred_naive)
+rmse_naive = np.sqrt(mean_squared_error(y_test, y_pred_naive))
 
-# Step 5: Regression Models (scikit-learn)
-print("\nTraining Regression Models...")
+print(f"Naïve Forecast Metrics:")
+print(f"  MAE (Mean Absolute Error): {mae_naive:.2f}")
+print(f"  RMSE (Root Mean Squared Error): {rmse_naive:.2f}")
+print("\n")
+
+# -----------------------------------------------------------------------------
+# STEP 5: Regression Models (scikit-learn)
+# -----------------------------------------------------------------------------
+print("Training Linear Regression and Random Forest models...")
+
 # Linear Regression
 lr_model = LinearRegression()
 lr_model.fit(X_train, y_train)
-lr_predictions = lr_model.predict(X_test)
+y_pred_lr = lr_model.predict(X_test)
 
-# Random Forest Regressor - often provides better performance
-rf_model = RandomForestRegressor(n_estimators=100, random_state=42, n_jobs=-1)
+# Random Forest Regressor
+rf_model = RandomForestRegressor(n_estimators=100, random_state=42)
 rf_model.fit(X_train, y_train)
-rf_predictions = rf_model.predict(X_test)
+y_pred_rf = rf_model.predict(X_test)
 
-# Optional: Using TimeSeriesSplit for cross-validation
-# tscv = TimeSeriesSplit(n_splits=5)
-# for train_index, val_index in tscv.split(df[features]):
-#     X_train_cv, X_val_cv = df[features].iloc[train_index], df[features].iloc[val_index]
-#     y_train_cv, y_val_cv = df[target].iloc[train_index], df[target].iloc[val_index]
-#     model.fit(X_train_cv, y_train_cv)
-#     # Evaluate on X_val_cv
-#     # This is a more robust way to evaluate model performance over time
+# Use TimeSeriesSplit for more robust cross-validation on Random Forest
+tscv = TimeSeriesSplit(n_splits=5)
+cv_scores = []
+for train_index, test_index in tscv.split(X):
+    X_train_cv, X_test_cv = X.iloc[train_index], X.iloc[test_index]
+    y_train_cv, y_test_cv = y.iloc[train_index], y.iloc[test_index]
+    
+    rf_model.fit(X_train_cv, y_train_cv)
+    y_pred_cv = rf_model.predict(X_test_cv)
+    
+    cv_scores.append(mean_absolute_error(y_test_cv, y_pred_cv))
 
-# Step 6: Evaluation
-print("\nEvaluating Model Performance...")
+print("Random Forest Regressor Cross-Validation MAE scores:")
+print(np.round(cv_scores, 2))
+print(f"Average CV MAE: {np.mean(cv_scores):.2f}")
+print("\n")
 
-# Linear Regression Metrics
-lr_mae = mean_absolute_error(y_test, lr_predictions)
-lr_rmse = np.sqrt(mean_squared_error(y_test, lr_predictions))
-print(f"Linear Regression MAE: {lr_mae:.2f}, RMSE: {lr_rmse:.2f}")
+# -----------------------------------------------------------------------------
+# STEP 6: Evaluation and Comparison
+# -----------------------------------------------------------------------------
+print("Evaluating model performance...")
 
-# Random Forest Metrics
-rf_mae = mean_absolute_error(y_test, rf_predictions)
-rf_rmse = np.sqrt(mean_squared_error(y_test, rf_predictions))
-print(f"Random Forest MAE: {rf_mae:.2f}, RMSE: {rf_rmse:.2f}")
+mae_lr = mean_absolute_error(y_test, y_pred_lr)
+rmse_lr = np.sqrt(mean_squared_error(y_test, y_pred_lr))
 
-# Compare to baseline
-if rf_mae < baseline_mae:
-    print("\nRandom Forest model outperforms the Naive baseline! ✅")
-else:
-    print("\nNaive baseline performs better or equal. Consider tuning the model. ⚠️")
+mae_rf = mean_absolute_error(y_test, y_pred_rf)
+rmse_rf = np.sqrt(mean_squared_error(y_test, y_pred_rf))
 
-# Step 7: Forecasting and Visualization
-print("\nGenerating future forecasts and visualizing results...")
+# Presenting the results in a clear, comparative format
+print("----------------------------------------------------------")
+print(f"| Model               | MAE (Lower is better) | RMSE (Lower is better) |")
+print("----------------------------------------------------------")
+print(f"| Naïve Forecast      | {mae_naive:<21.2f} | {rmse_naive:<22.2f} |")
+print(f"| Linear Regression   | {mae_lr:<21.2f} | {rmse_lr:<22.2f} |")
+print(f"| Random Forest       | {mae_rf:<21.2f} | {rmse_rf:<22.2f} |")
+print("----------------------------------------------------------")
+print("\n")
 
-# Generate future dates for the next 90 days
-last_date = df['Date'].iloc[-1]
-future_dates = pd.date_range(start=last_date + timedelta(days=1), periods=90, freq='D')
+# -----------------------------------------------------------------------------
+# STEP 7: Forecasting and Visualization
+# -----------------------------------------------------------------------------
+print("Generating future predictions and visualizing results...")
+
+# Create a DataFrame for the next 6 months of data
+last_date = sales_data['Date'].iloc[-1]
+future_dates = pd.date_range(start=last_date, periods=7, freq='M')[1:]
 future_df = pd.DataFrame({'Date': future_dates})
 
-# Populate features for the future dates
+# Engineer features for the future data using the last known values
 future_df['Year'] = future_df['Date'].dt.year
 future_df['Month'] = future_df['Date'].dt.month
-future_df['Day'] = future_df['Date'].dt.day
 future_df['DayOfWeek'] = future_df['Date'].dt.dayofweek
-future_df['Sales_Lag1'] = np.nan # This will be tricky, we'll need to impute
 
-# For a simple forecast, we'll just use the last known sales value as the lag
-last_sales = df['Sales'].iloc[-1]
-future_df['Sales_Lag1'].iloc[0] = last_sales
+# Use the last few months of actual sales data to create the lagged features for forecasting
+future_df['Lag_1'] = sales_data['Sales'].iloc[-1]
+future_df['Lag_3'] = sales_data['Sales'].iloc[-3]
+future_df['Lag_6'] = sales_data['Sales'].iloc[-6]
 
-# Make predictions for the future
-future_predictions = rf_model.predict(future_df[features].fillna(0)) # Using fillna for simplicity
-future_df['Forecast'] = future_predictions
+# Use the best-performing model (Random Forest) to predict future sales
+X_future = future_df[features]
+future_predictions = rf_model.predict(X_future)
+future_df['Predicted_Sales'] = future_predictions
 
-# Visualize the entire timeline: historical, test, and future forecast
-plt.figure(figsize=(16, 9))
-
-# Plot historical actual sales
-plt.plot(df['Date'], df['Sales'], color='blue', linestyle='--', label='Historical Actual Sales')
-
-# Plot test data actuals and predictions
-plt.plot(test_df['Date'], y_test, color='green', label='Test Actual Sales', linestyle='-')
-plt.plot(test_df['Date'], rf_predictions, color='red', linestyle='-', label='Test Predicted Sales')
-
-# Plot future forecasts
-plt.plot(future_df['Date'], future_df['Forecast'], color='purple', linestyle='-', label='Future Forecast')
-
-plt.title('Sales Forecast: Historical vs. Predicted vs. Future Forecast')
-plt.xlabel('Date')
-plt.ylabel('Sales')
+# Visualize the actual sales data vs. the new predictions
+plt.figure(figsize=(14, 8))
+plt.plot(sales_data['Date'], sales_data['Sales'], label='Actual Sales', color='blue')
+plt.plot(future_df['Date'], future_df['Predicted_Sales'], label='Predicted Sales', color='red', linestyle='--')
+plt.title('Actual Sales vs. Future Forecast', fontsize=18)
+plt.xlabel('Date', fontsize=12)
+plt.ylabel('Sales', fontsize=12)
 plt.legend()
 plt.grid(True)
 plt.show()
 
-# NEW: Step 8: Save data to a JSON file for the web app
-print("\nSaving forecast data to JSON file...")
-
-# Create a list of dictionaries for the historical data
-historical_data = df.to_dict(orient='records')
-# Create a list of dictionaries for the test data and predictions
-test_data = test_df.copy()
-test_data['Prediction'] = rf_predictions
-test_data = test_data.to_dict(orient='records')
-# Create a list of dictionaries for the future forecast
-future_forecast = future_df.to_dict(orient='records')
-
-# Prepare the data for JSON serialization
-# Convert Timestamp objects to strings for JSON
-for item in historical_data:
-    item['Date'] = item['Date'].strftime('%Y-%m-%d')
-for item in test_data:
-    item['Date'] = item['Date'].strftime('%Y-%m-%d')
-for item in future_forecast:
-    item['Date'] = item['Date'].strftime('%Y-%m-%d')
-
-output_data = {
-    "historical": historical_data,
-    "test_actual": [item['Sales'] for item in test_data],
-    "test_predictions": [item['Prediction'] for item in test_data],
-    "future_forecast": [item['Forecast'] for item in future_forecast],
-    "test_dates": [item['Date'] for item in test_data],
-    "future_dates": [item['Date'] for item in future_forecast],
-    "historical_dates": [item['Date'] for item in historical_data]
-}
-
-# Save the data to a JSON file
-with open('forecast_data.json', 'w') as f:
-    json.dump(output_data, f, indent=4)
-
-print("Data successfully saved to 'forecast_data.json'!")
-print("\nForecasting complete. The plot shows how well the model predicts historical trends and its future sales projection.")
+print("Future Sales Predictions (Next 6 Months):")
+print(future_df[['Date', 'Predicted_Sales']].round(2))
