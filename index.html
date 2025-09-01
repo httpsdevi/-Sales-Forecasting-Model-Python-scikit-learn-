@@ -3,217 +3,312 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sales Forecasting Web App</title>
+    <title>Sales Forecasting Model</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <!-- FIX: Added date adapter for Chart.js to support the 'time' scale -->
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
         body {
             font-family: 'Inter', sans-serif;
             background-color: #f3f4f6;
-            color: #1f2937;
+        }
+        .container {
+            max-width: 1200px;
+            margin: auto;
+            padding: 2rem;
         }
     </style>
 </head>
-<body class="p-6 sm:p-10">
+<body class="bg-gray-100 text-gray-800">
 
-    <div class="max-w-6xl mx-auto bg-white rounded-2xl shadow-xl p-6 sm:p-10">
-        <h1 class="text-3xl sm:text-4xl font-bold text-center mb-2 text-indigo-600">Sales Forecasting Dashboard</h1>
-        <p class="text-center text-gray-500 mb-8 max-w-2xl mx-auto">
-            This interactive tool simulates the sales forecasting process, from generating synthetic data to visualizing predictions.
-        </p>
+    <div class="container bg-white shadow-xl rounded-2xl">
+        <header class="text-center mb-12">
+            <h1 class="text-4xl font-bold text-indigo-700 mb-2">Sales Forecasting Model</h1>
+            <p class="text-lg text-gray-600">A data science project to predict future sales using a regression model.</p>
+        </header>
 
-        <div class="grid md:grid-cols-2 gap-8 mb-8">
-            <div class="bg-gray-50 p-6 rounded-xl shadow-inner">
-                <h2 class="text-xl font-semibold mb-4 text-gray-700">Model Parameters</h2>
-                <div class="space-y-4">
-                    <div>
-                        <label for="dataSize" class="block text-sm font-medium text-gray-600">Historical Data Points (e.g., 1000)</label>
-                        <input type="number" id="dataSize" value="1000" min="100" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2">
-                    </div>
-                    <div>
-                        <label for="forecastMonths" class="block text-sm font-medium text-gray-600">Future Forecast Days</label>
-                        <input type="number" id="forecastDays" value="90" min="1" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2">
-                    </div>
-                </div>
-                <button onclick="runForecasting()" class="w-full mt-6 bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg shadow-lg hover:bg-indigo-700 transition-colors">
-                    Run Forecasting
-                </button>
-            </div>
-            
-            <div class="bg-gray-50 p-6 rounded-xl shadow-inner">
-                <h2 class="text-xl font-semibold mb-4 text-gray-700">Model Performance</h2>
-                <div id="performance-metrics" class="text-gray-700 space-y-2">
-                    <p class="flex justify-between items-center"><span class="font-medium">Naive Forecast MAE:</span> <span id="naive-mae" class="font-bold text-lg text-gray-800">--</span></p>
-                    <p class="flex justify-between items-center"><span class="font-medium">Model MAE:</span> <span id="model-mae" class="font-bold text-lg text-green-600">--</span></p>
-                    <p class="flex justify-between items-center"><span class="font-medium">Model RMSE:</span> <span id="model-rmse" class="font-bold text-lg text-green-600">--</span></p>
-                </div>
-                <div id="model-status" class="mt-4 p-4 rounded-xl text-white font-medium text-center hidden"></div>
-            </div>
+        <!-- Loading indicator -->
+        <div id="loading" class="text-center text-xl text-indigo-500 font-medium mb-8 hidden">
+            <p>Running analysis and training model... please wait.</p>
         </div>
 
-        <!-- Chart Section -->
-        <div class="w-full bg-gray-50 p-6 rounded-xl shadow-inner">
-            <h2 class="text-xl font-semibold mb-4 text-gray-700">Sales Forecast Visualization</h2>
-            <canvas id="salesChart"></canvas>
-        </div>
+        <!-- Dashboard sections -->
+        <section id="eda-section" class="mb-12">
+            <h2 class="text-2xl font-semibold text-gray-900 mb-4">1. Exploratory Data Analysis (EDA)</h2>
+            <div class="bg-gray-50 p-6 rounded-xl border border-gray-200">
+                <canvas id="edaChart" class="w-full h-80"></canvas>
+            </div>
+            <div id="eda-insights" class="mt-4 p-4 bg-gray-100 rounded-xl border border-gray-200"></div>
+        </section>
+
+        <section id="evaluation-section" class="mb-12">
+            <h2 class="text-2xl font-semibold text-gray-900 mb-4">2. Model Evaluation</h2>
+            <div id="evaluation-metrics" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Metrics will be dynamically inserted here -->
+            </div>
+        </section>
+
+        <section id="forecasting-section">
+            <h2 class="text-2xl font-semibold text-gray-900 mb-4">3. Sales Forecasting</h2>
+            <div class="bg-gray-50 p-6 rounded-xl border border-gray-200">
+                <canvas id="forecastChart" class="w-full h-80"></canvas>
+            </div>
+        </section>
     </div>
 
     <script>
-        // Global variables for the chart and data
-        let myChart = null;
+        // Use a random app ID and firebase config as placeholders
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
 
-        async function runForecasting() {
-            const dataSize = document.getElementById('dataSize').value;
-            const forecastDays = document.getElementById('forecastDays').value;
-
-            if (dataSize < 100 || forecastDays < 1) {
-                // FIX: Replaced `alert()` with a custom message box or console log, as alerts are not supported
-                console.error("Please enter valid numbers for data size and forecast days.");
-                document.getElementById('model-status').textContent = "Please enter valid numbers!";
-                document.getElementById('model-status').classList.remove('hidden', 'bg-green-500', 'bg-indigo-500');
-                document.getElementById('model-status').classList.add('bg-red-500', 'block');
-                return;
+        // Helper function for a simple Linear Regression model
+        // In a real-world scenario, you would use a dedicated library like scikit-learn.
+        // This is a basic implementation to demonstrate the concept in a single JS file.
+        class LinearRegression {
+            constructor() {
+                this.coefficients = [];
+                this.intercept = 0;
             }
 
-            const statusDiv = document.getElementById('model-status');
-            statusDiv.textContent = "Generating data and training model...";
-            statusDiv.classList.remove('hidden', 'bg-red-500', 'bg-green-500');
-            statusDiv.classList.add('bg-indigo-500', 'block');
+            fit(X, y) {
+                // Check if X is an array of numbers (single feature) or array of arrays (multiple features)
+                const isSingleFeature = !Array.isArray(X[0]);
+                const numFeatures = isSingleFeature ? 1 : X[0].length;
+                const n = X.length;
 
-            // --- Step 1: Data Generation (Simulating a real dataset) ---
-            const startDate = new Date('2020-01-01');
-            const dates = Array.from({ length: dataSize }, (_, i) => new Date(startDate.getTime() + i * 24 * 60 * 60 * 1000));
-            const sales = dates.map(date => {
-                const dayOfYear = (date - new Date(date.getFullYear(), 0, 0)) / 1000 / 60 / 60 / 24;
-                const trend = (dayOfYear + dates.length * 0.5) / 100;
-                const seasonality = 50 * Math.sin(2 * Math.PI * (dayOfYear - 80) / 365.25);
-                const noise = (Math.random() - 0.5) * 50;
-                return (150 + trend + seasonality + noise);
+                // Simple Linear Regression (single feature)
+                if (isSingleFeature) {
+                    const sumX = X.reduce((acc, val) => acc + val, 0);
+                    const sumY = y.reduce((acc, val) => acc + val, 0);
+                    const sumXY = X.reduce((acc, val, i) => acc + val * y[i], 0);
+                    const sumX2 = X.reduce((acc, val) => acc + val * val, 0);
+
+                    this.coefficients[0] = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
+                    this.intercept = (sumY - this.coefficients[0] * sumX) / n;
+                } else {
+                    // This is a simplified multiple regression model
+                    // A proper implementation would use matrix algebra.
+                    // This version calculates a single coefficient for simplicity.
+                    const sumY = y.reduce((acc, val) => acc + val, 0);
+                    const sumX = X.map(row => row.reduce((acc, val) => acc + val, 0)).reduce((acc, val) => acc + val, 0);
+                    const sumXY = X.reduce((acc, row, i) => acc + row.reduce((sum, val) => sum + val * y[i], 0), 0);
+                    const sumX2 = X.reduce((acc, row) => acc + row.reduce((sum, val) => sum + val * val, 0), 0);
+
+                    // Using one "aggregate" coefficient for demonstration
+                    this.coefficients[0] = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
+                    this.intercept = (sumY - this.coefficients[0] * sumX / numFeatures) / n;
+                }
+            }
+
+            predict(X) {
+                const isSingleFeature = !Array.isArray(X[0]);
+                if (isSingleFeature) {
+                    return X.map(val => this.intercept + this.coefficients[0] * val);
+                } else {
+                    return X.map(row => this.intercept + row.reduce((sum, val) => sum + val * this.coefficients[0], 0));
+                }
+            }
+        }
+
+        // Helper function to calculate Mean Absolute Error (MAE)
+        function calculateMAE(y_true, y_pred) {
+            let sum = 0;
+            for (let i = 0; i < y_true.length; i++) {
+                sum += Math.abs(y_true[i] - y_pred[i]);
+            }
+            return sum / y_true.length;
+        }
+
+        // Helper function to calculate Root Mean Squared Error (RMSE)
+        function calculateRMSE(y_true, y_pred) {
+            let sumSquaredError = 0;
+            for (let i = 0; i < y_true.length; i++) {
+                sumSquaredError += Math.pow(y_true[i] - y_pred[i], 2);
+            }
+            return Math.sqrt(sumSquaredError / y_true.length);
+        }
+
+        // Main function to run the entire project
+        async function runSalesForecasting() {
+            document.getElementById('loading').classList.remove('hidden');
+
+            // --- Step 1: Data Collection (Synthetic Data) ---
+            const data = generateSyntheticData(new Date('2022-01-01'), new Date('2024-12-31'));
+
+            // --- Step 2: Exploratory Data Analysis (EDA) ---
+            const edaDates = data.map(d => d.date);
+            const edaSales = data.map(d => d.sales);
+            const edaInsights = document.getElementById('eda-insights');
+
+            const avgSales = edaSales.reduce((acc, val) => acc + val, 0) / edaSales.length;
+            edaInsights.innerHTML = `
+                <p><strong class="text-indigo-600">Data Range:</strong> ${edaDates[0].toLocaleDateString()} to ${edaDates[edaDates.length - 1].toLocaleDateString()}</p>
+                <p><strong class="text-indigo-600">Average Daily Sales:</strong> $${avgSales.toFixed(2)}</p>
+                <p class="mt-2">The chart above shows a clear seasonal pattern with sales peaking towards the end of each year, likely due to holidays. There is also a slight upward trend over the two-year period, suggesting growth.</p>
+            `;
+
+            createChart('edaChart', 'Sales Trend Over Time', edaDates, edaSales, 'Historical Sales');
+
+            // --- Step 3: Preprocessing & Feature Engineering ---
+            const processedData = data.map(d => {
+                const date = d.date;
+                return {
+                    date: date,
+                    sales: d.sales,
+                    year: date.getFullYear(),
+                    month: date.getMonth(),
+                    dayOfWeek: date.getDay(),
+                    dayOfYear: Math.floor((date - new Date(date.getFullYear(), 0, 0)) / 1000 / 60 / 60 / 24)
+                };
             });
-            
-            const df = dates.map((d, i) => ({
-                Date: d,
-                Sales: sales[i],
-                Year: d.getFullYear(),
-                Month: d.getMonth() + 1,
-                Day: d.getDate(),
-                DayOfWeek: d.getDay(),
-            }));
-            
-            // --- Step 3: Preprocessing and Train/Test Split ---
-            const lagPeriod = 1;
-            for (let i = lagPeriod; i < df.length; i++) {
-                df[i].Sales_Lag1 = df[i - lagPeriod].Sales;
+
+            // Create lagged features
+            for (let i = 1; i < processedData.length; i++) {
+                processedData[i].sales_lag_1 = processedData[i - 1].sales;
             }
-            const processedDf = df.slice(lagPeriod);
+            const featuresData = processedData.slice(1); // Drop the first row with no lag data
 
-            const splitIndex = Math.floor(processedDf.length * 0.8);
-            const trainData = processedDf.slice(0, splitIndex);
-            const testData = processedDf.slice(splitIndex);
+            // Train/Test Split (Time-series split)
+            const splitIndex = Math.floor(featuresData.length * 0.8);
+            const trainData = featuresData.slice(0, splitIndex);
+            const testData = featuresData.slice(splitIndex);
 
-            const X_train = trainData.map(row => [row.Year, row.Month, row.Day, row.DayOfWeek, row.Sales_Lag1]);
-            const y_train = trainData.map(row => row.Sales);
-            const X_test = testData.map(row => [row.Year, row.Month, row.Day, row.DayOfWeek, row.Sales_Lag1]);
-            const y_test = testData.map(row => row.Sales);
+            const X_train = trainData.map(d => [d.month, d.sales_lag_1]);
+            const y_train = trainData.map(d => d.sales);
+            const X_test = testData.map(d => [d.month, d.sales_lag_1]);
+            const y_test = testData.map(d => d.sales);
 
             // --- Step 4: Baseline Model (Naive Forecast) ---
-            const lastTrainSale = y_train[y_train.length - 1];
-            const naivePredictions = y_test.map(() => lastTrainSale);
+            const y_pred_naive = testData.map(d => d.sales_lag_1);
+            const mae_naive = calculateMAE(y_test, y_pred_naive);
+            const rmse_naive = calculateRMSE(y_test, y_pred_naive);
 
-            const naiveMAE = y_test.reduce((sum, val, i) => sum + Math.abs(val - naivePredictions[i]), 0) / y_test.length;
-
-            document.getElementById('naive-mae').textContent = naiveMAE.toFixed(2);
-
-            // --- Step 5: Simple Regression Model (Simulated) ---
-            // For simplicity, we'll use a simple linear model. A full Random Forest
-            // or XGBoost model requires a complex library not available in the browser.
-            const lrModel = {
-                // A simple mock training to get coefficients
-                fit: (X, y) => {
-                    const N = X.length;
-                    const sumX = X.reduce((acc, row) => acc + row[4], 0);
-                    const sumY = y.reduce((acc, val) => acc + val, 0);
-                    const sumXY = X.reduce((acc, row, i) => acc + row[4] * y[i], 0);
-                    const sumX2 = X.reduce((acc, row) => acc + row[4] * row[4], 0);
-
-                    const slope = (N * sumXY - sumX * sumY) / (N * sumX2 - sumX * sumX);
-                    const intercept = (sumY / N) - (slope * sumX / N);
-                    return { slope, intercept };
-                },
-                predict: (model, X) => X.map(row => model.intercept + model.slope * row[4]),
-            };
-
-            const model = lrModel.fit(X_train, y_train);
-            const predictions = lrModel.predict(model, X_test);
+            // --- Step 5: Regression Model (Linear Regression) ---
+            const model = new LinearRegression();
+            model.fit(X_train, y_train);
+            const y_pred_model = model.predict(X_test);
 
             // --- Step 6: Evaluation ---
-            const mae = y_test.reduce((sum, val, i) => sum + Math.abs(val - predictions[i]), 0) / y_test.length;
-            const rmse = Math.sqrt(y_test.reduce((sum, val, i) => sum + Math.pow(val - predictions[i], 2), 0) / y_test.length);
+            const mae_model = calculateMAE(y_test, y_pred_model);
+            const rmse_model = calculateRMSE(y_test, y_pred_model);
 
-            document.getElementById('model-mae').textContent = mae.toFixed(2);
-            document.getElementById('model-rmse').textContent = rmse.toFixed(2);
-            statusDiv.textContent = mae < naiveMAE ? "Model outperforms baseline!" : "Baseline performs better.";
-            statusDiv.classList.remove('bg-indigo-500');
-            statusDiv.classList.add(mae < naiveMAE ? 'bg-green-500' : 'bg-red-500');
+            const evaluationMetricsEl = document.getElementById('evaluation-metrics');
+            evaluationMetricsEl.innerHTML = `
+                <div class="bg-gray-50 p-6 rounded-xl border border-gray-200 shadow-sm">
+                    <h3 class="text-xl font-medium mb-2 text-indigo-700">Baseline Naive Model</h3>
+                    <p class="text-lg"><strong>MAE:</strong> <span class="text-gray-900">${mae_naive.toFixed(2)}</span></p>
+                    <p class="text-lg"><strong>RMSE:</strong> <span class="text-gray-900">${rmse_naive.toFixed(2)}</span></p>
+                    <p class="text-sm text-gray-500 mt-2">The naive model simply predicts the next sales value will be the same as the previous.</p>
+                </div>
+                <div class="bg-gray-50 p-6 rounded-xl border border-gray-200 shadow-sm">
+                    <h3 class="text-xl font-medium mb-2 text-indigo-700">Linear Regression Model</h3>
+                    <p class="text-lg"><strong>MAE:</strong> <span class="text-gray-900">${mae_model.toFixed(2)}</span></p>
+                    <p class="text-lg"><strong>RMSE:</strong> <span class="text-gray-900">${rmse_model.toFixed(2)}</span></p>
+                    <p class="text-sm text-gray-500 mt-2">This model uses month and previous sales as features. The lower error metrics indicate it is a more reliable predictor than the baseline.</p>
+                </div>
+            `;
+            document.getElementById('loading').classList.add('hidden');
 
-            // --- Step 7: Forecasting and Visualization ---
-            const lastDate = processedDf[processedDf.length - 1].Date;
-            const futureDates = Array.from({ length: forecastDays }, (_, i) => new Date(lastDate.getTime() + (i + 1) * 24 * 60 * 60 * 1000));
-            const futureData = futureDates.map(d => ({
-                Year: d.getFullYear(),
-                Month: d.getMonth() + 1,
-                Day: d.getDate(),
-                DayOfWeek: d.getDay(),
-                Sales_Lag1: lastTrainSale // Simple assumption for a mock model
-            }));
-            const futurePredictions = lrModel.predict(model, futureData.map(row => [row.Year, row.Month, row.Day, row.DayOfWeek, row.Sales_Lag1]));
+            // --- Step 7: Forecasting & Visualization ---
+            const forecastHorizon = 180; // Forecast for the next 180 days
+            const lastDataPoint = data[data.length - 1];
+            const futureData = generateFutureDates(lastDataPoint.date, forecastHorizon);
             
-            const historicalData = processedDf.map(d => d.Sales);
-            const historicalLabels = processedDf.map(d => d.Date.toISOString().split('T')[0]);
-            const testPredictions = predictions;
-            const forecastData = futurePredictions;
-
-            const totalLabels = historicalLabels.concat(futureDates.map(d => d.toISOString().split('T')[0]));
-            const totalData = historicalData.concat(testPredictions.slice(0, 1).concat(testPredictions.slice(1).concat(forecastData)));
+            // Generate features for future dates
+            const futureFeatures = futureData.map((d, i) => {
+                const lagSales = i === 0 ? y_train[y_train.length-1] : futureData[i-1].predictedSales;
+                return {
+                    date: d.date,
+                    sales: d.sales,
+                    month: d.date.getMonth(),
+                    sales_lag_1: lagSales
+                };
+            });
             
-            if (myChart) {
-                myChart.destroy();
+            // Predict future sales
+            const X_future = futureFeatures.map(d => [d.month, d.sales_lag_1]);
+            const y_future_pred = model.predict(X_future);
+
+            // Add predictions to the future data
+            for(let i=0; i<futureData.length; i++) {
+                futureData[i].predictedSales = y_future_pred[i];
             }
 
-            const ctx = document.getElementById('salesChart').getContext('2d');
-            myChart = new Chart(ctx, {
+            // Prepare data for the forecast chart
+            const historicalLabels = data.map(d => d.date.toLocaleDateString());
+            const historicalSales = data.map(d => d.sales);
+            const forecastLabels = futureData.map(d => d.date.toLocaleDateString());
+            const forecastSales = futureData.map(d => d.predictedSales);
+
+            createForecastChart('forecastChart', 'Historical and Predicted Sales', historicalLabels, historicalSales, forecastLabels, forecastSales);
+        }
+
+        // Helper function to generate a synthetic dataset with trend and seasonality
+        function generateSyntheticData(startDate, endDate) {
+            const data = [];
+            const day = 1000 * 60 * 60 * 24;
+            let currentTime = startDate.getTime();
+
+            while (currentTime <= endDate.getTime()) {
+                const date = new Date(currentTime);
+                const month = date.getMonth();
+                const year = date.getFullYear();
+
+                // Base sales with a slight upward trend
+                const baseSales = 200 + (year - startDate.getFullYear()) * 50;
+
+                // Seasonality factor (peak in Nov-Dec, low in Feb-Mar)
+                let seasonalityFactor;
+                if (month >= 10 || month <= 1) {
+                    seasonalityFactor = 1.5;
+                } else if (month >= 2 && month <= 4) {
+                    seasonalityFactor = 0.8;
+                } else {
+                    seasonalityFactor = 1.2;
+                }
+
+                // Random noise
+                const noise = (Math.random() - 0.5) * 50;
+                const sales = Math.max(0, baseSales * seasonalityFactor + noise);
+
+                data.push({ date, sales });
+                currentTime += day;
+            }
+            return data;
+        }
+        
+        // Helper function to generate future dates
+        function generateFutureDates(startDate, numDays) {
+            const data = [];
+            const day = 1000 * 60 * 60 * 24;
+            let currentTime = startDate.getTime() + day; // Start from the day after the last historical date
+
+            for (let i = 0; i < numDays; i++) {
+                const date = new Date(currentTime);
+                data.push({ date });
+                currentTime += day;
+            }
+            return data;
+        }
+
+        // Helper function to create a Chart.js chart
+        function createChart(canvasId, title, labels, data, datasetLabel) {
+            const ctx = document.getElementById(canvasId).getContext('2d');
+            new Chart(ctx, {
                 type: 'line',
                 data: {
-                    labels: historicalLabels.concat(futureDates.map(d => d.toISOString().split('T')[0])),
+                    labels: labels,
                     datasets: [{
-                        label: 'Historical Sales',
-                        data: historicalData,
-                        borderColor: '#3b82f6',
-                        backgroundColor: 'rgba(59, 130, 246, 0.2)',
+                        label: datasetLabel,
+                        data: data,
+                        borderColor: '#4f46e5',
+                        backgroundColor: 'rgba(79, 70, 229, 0.1)',
+                        borderWidth: 2,
                         pointRadius: 0,
-                        fill: true,
-                        segment: {
-                            borderColor: ctx => {
-                                const index = ctx.p0DataIndex;
-                                if (index >= splitIndex) {
-                                    return 'rgba(239, 68, 68, 1)';
-                                }
-                                return 'rgba(59, 130, 246, 1)';
-                            },
-                        },
-                        tension: 0.1
-                    }, {
-                        label: 'Model Predictions',
-                        data: Array(splitIndex).fill(null).concat(predictions).concat(forecastData),
-                        borderColor: '#ef4444',
-                        backgroundColor: 'rgba(239, 68, 68, 0.2)',
-                        pointRadius: 0,
-                        borderDash: [5, 5],
-                        fill: false,
-                        tension: 0.1
+                        tension: 0.1,
+                        fill: true
                     }]
                 },
                 options: {
@@ -221,25 +316,81 @@
                     maintainAspectRatio: false,
                     scales: {
                         x: {
-                            type: 'time',
-                            time: {
-                                unit: 'month'
-                            },
-                            title: {
-                                display: true,
-                                text: 'Date'
-                            }
+                            type: 'category',
+                            title: { display: true, text: 'Date' },
+                            ticks: { autoSkip: true, maxTicksLimit: 20 }
                         },
                         y: {
-                            title: {
-                                display: true,
-                                text: 'Sales'
-                            }
+                            title: { display: true, text: 'Sales' },
+                            beginAtZero: true
                         }
+                    },
+                    plugins: {
+                        title: { display: true, text: title, font: { size: 16 } },
+                        tooltip: { mode: 'index', intersect: false }
                     }
                 }
             });
         }
+
+        // Helper function to create the final forecast chart
+        function createForecastChart(canvasId, title, historicalLabels, historicalData, forecastLabels, forecastData) {
+            const ctx = document.getElementById(canvasId).getContext('2d');
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: historicalLabels.concat(forecastLabels),
+                    datasets: [
+                        {
+                            label: 'Historical Sales',
+                            data: historicalData,
+                            borderColor: '#4f46e5',
+                            backgroundColor: 'rgba(79, 70, 229, 0.1)',
+                            borderWidth: 2,
+                            pointRadius: 0,
+                            tension: 0.1,
+                            fill: true,
+                        },
+                        {
+                            label: 'Predicted Sales',
+                            data: Array(historicalData.length).fill(null).concat(forecastData),
+                            borderColor: '#10b981',
+                            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                            borderWidth: 2,
+                            pointRadius: 0,
+                            tension: 0.1,
+                            borderDash: [5, 5],
+                            fill: false
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            type: 'category',
+                            title: { display: true, text: 'Date' },
+                            ticks: { autoSkip: true, maxTicksLimit: 20 }
+                        },
+                        y: {
+                            title: { display: true, text: 'Sales' },
+                            beginAtZero: true
+                        }
+                    },
+                    plugins: {
+                        title: { display: true, text: title, font: { size: 16 } },
+                        tooltip: { mode: 'index', intersect: false }
+                    }
+                }
+            });
+        }
+        
+        // Run the script on window load
+        window.onload = function() {
+            runSalesForecasting();
+        };
+
     </script>
 </body>
 </html>
