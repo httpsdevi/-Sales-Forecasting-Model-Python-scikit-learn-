@@ -1,4 +1,8 @@
------------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+# Project 2: Sales Forecasting Model (Python, scikit-learn)
+# This script demonstrates a complete workflow for building a sales forecasting
+# model, following the user's requested steps.
+# -----------------------------------------------------------------------------
 
 # Step 1: Data Collection & Setup
 # Since we don't have a file, we'll generate a synthetic time-series dataset.
@@ -13,6 +17,7 @@ from sklearn.linear_model import LinearRegression
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 from datetime import timedelta
+import json
 
 print("Generating synthetic sales data...")
 # Create a date range for the data
@@ -183,4 +188,40 @@ plt.legend()
 plt.grid(True)
 plt.show()
 
+# NEW: Step 8: Save data to a JSON file for the web app
+print("\nSaving forecast data to JSON file...")
+
+# Create a list of dictionaries for the historical data
+historical_data = df.to_dict(orient='records')
+# Create a list of dictionaries for the test data and predictions
+test_data = test_df.copy()
+test_data['Prediction'] = rf_predictions
+test_data = test_data.to_dict(orient='records')
+# Create a list of dictionaries for the future forecast
+future_forecast = future_df.to_dict(orient='records')
+
+# Prepare the data for JSON serialization
+# Convert Timestamp objects to strings for JSON
+for item in historical_data:
+    item['Date'] = item['Date'].strftime('%Y-%m-%d')
+for item in test_data:
+    item['Date'] = item['Date'].strftime('%Y-%m-%d')
+for item in future_forecast:
+    item['Date'] = item['Date'].strftime('%Y-%m-%d')
+
+output_data = {
+    "historical": historical_data,
+    "test_actual": [item['Sales'] for item in test_data],
+    "test_predictions": [item['Prediction'] for item in test_data],
+    "future_forecast": [item['Forecast'] for item in future_forecast],
+    "test_dates": [item['Date'] for item in test_data],
+    "future_dates": [item['Date'] for item in future_forecast],
+    "historical_dates": [item['Date'] for item in historical_data]
+}
+
+# Save the data to a JSON file
+with open('forecast_data.json', 'w') as f:
+    json.dump(output_data, f, indent=4)
+
+print("Data successfully saved to 'forecast_data.json'!")
 print("\nForecasting complete. The plot shows how well the model predicts historical trends and its future sales projection.")
